@@ -1,132 +1,124 @@
 package org.least_res_gps.core.parser;
 
-import org.least_res_gps.core.exceptions.FileErrorException;
 import org.least_res_gps.core.graph.Edge;
 import org.least_res_gps.core.graph.Graph;
 import org.least_res_gps.core.graph.Node;
 import org.least_res_gps.core.graph.RoadType;
 import org.least_res_gps.core.util.RoadUtil;
-import org.w3c.dom.Document;
-import org.w3c.dom.Element;
-import org.w3c.dom.NodeList;
 
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.stream.XMLInputFactory;
+import javax.xml.stream.XMLStreamConstants;
+import javax.xml.stream.XMLStreamException;
+import javax.xml.stream.XMLStreamReader;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.util.ArrayList;
+import java.util.List;
 
 public class OsmParser {
 
 
-    public static Graph parse(File osmFile) throws ParserConfigurationException, FileErrorException {
-        // Create factory & builder
-        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-        DocumentBuilder builder = factory.newDocumentBuilder();
+    public static Graph parse(File osmFile) throws FileNotFoundException, XMLStreamException {
 
-        // Load the file into an in-memory DOM tree
-        Document doc;
-        try {
-             doc = builder.parse(osmFile);
-        } catch (Exception e) {
-            throw new FileErrorException(e.getMessage());
-        }
+        // Create factory and reader
+        XMLInputFactory factory = XMLInputFactory.newInstance();
+        XMLStreamReader reader = factory.createXMLStreamReader(new FileInputStream(osmFile));
 
         Graph graph = new Graph();
 
-        // N.B: NodeList is from w3c.doc, not least_res_gps.core
-        NodeList nodes = doc.getElementsByTagName("node");
-        NodeList ways = doc.getElementsByTagName("way");
+        while (reader.hasNext()) {
 
-        // Cycle every node
-        for (int i=0; i < nodes.getLength(); i++) {
-            Element element = (Element) nodes.item(i);
+            int event = reader.next();
 
-            // Get the main attribute string data
-            String idString = element.getAttribute("id");
-            String latString = element.getAttribute("lat");
-            String lonString = element.getAttribute("lon");
+            if (event == XMLStreamConstants.START_ELEMENT && "node".equals(reader.getLocalName())) {
+                // Extract attributes
+                long id = Long.parseLong(reader.getAttributeValue(null, "id"));
+                double lat = Double.parseDouble(reader.getAttributeValue(null, "lat"));
+                double lon = Double.parseDouble(reader.getAttributeValue(null, "lon"));
 
-            // Parse the string data into actual data
-            long id = Long.parseLong(idString);
-            double lat = Double.parseDouble(latString);
-            double lon = Double.parseDouble(lonString);
-
-            // Create the new node and add it to the graph
-            Node node = new Node(id, lat, lon);
-            graph.addNode(node);
+                // Create a node with those attributes and add it to the graph
+                graph.addNode(new Node(id, lat, lon));
+            } else if (event == XMLStreamConstants.START_ELEMENT && "way".equals(reader.getLocalName())) { // We reach the tag "way", we finished with the nodes
+                // Parse the "ways" after finishing with the nodes
+                parseWay(reader, graph);
+            }
         }
 
-        // Cycle every edge
-        for (int i=0; i < ways.getLength(); i++) {
-            Element element = (Element) ways.item(i);
-
-            // Set the fallback for the attributes of the edge
-            double distanceMeters = -1;
-            int speedLimit = -1;
-            RoadType roadType = RoadType.MISSING;
-            String name = "Unnamed road";
-            boolean oneWay = false;
-
-            // Get the actual attributes of the edge
-            NodeList tags = element.getElementsByTagName("tag");
-            for (int j=0; j < tags.getLength(); j++) {
-                Element tag = (Element) tags.item(j);
-                String key = tag.getAttribute("k");
-                String value = tag.getAttribute("v");
-
-                switch (key) {
-                    case "name" -> name = value;
-                    case "highway" -> roadType = RoadType.parseRoadType(value);
-                    case "maxspeed" -> speedLimit = parseSpeedLimit(value);
-                    case "oneway" -> oneWay = "yes".equalsIgnoreCase(value); // oneway="yes", not oneway="true"
-                }
-
-            }
-
-            if (roadType == RoadType.MISSING || roadType == RoadType.OTHER) continue;
-
-            if (speedLimit == -1) { speedLimit = roadType.getDefaultMaxSpeed(); }
-
-            // Apply the edge at each intersection with other nodes
-            NodeList wayNodes = element.getElementsByTagName("nd");
-            for (int j=1; j < wayNodes.getLength(); j++) {
-
-                // Get the starting node
-                long startingNodeId = Long.parseLong(
-                        ((Element)wayNodes.item(j-1))
-                                .getAttribute("ref")
-                );
-                Node startingNode = graph.getNode(startingNodeId);
-                if (startingNode == null) continue; // If the start is out of scope, skip this edge
-
-                // Get the destination node
-                long destinationNodeId = Long.parseLong(
-                        ((Element)wayNodes.item(j))
-                                .getAttribute("ref")
-                );
-                Node destinationNode = graph.getNode(destinationNodeId);
-                if (destinationNode == null) continue; // If the destination is out of scope, skip this edge
-
-                // Calculate the distance
-                distanceMeters = RoadUtil.calculateDistance(startingNode.getLat(), startingNode.getLon(), destinationNode.getLat(), destinationNode.getLon());
-
-                // Get the estimated travel time (s = m/kmh)
-                double travelTimeSeconds = distanceMeters*3.6/speedLimit; // Travel time seconds
-
-                // Create the edge and add it to the starting node
-                Edge edge = new Edge(destinationNode, name, roadType, speedLimit, distanceMeters, travelTimeSeconds);
-                startingNode.addEdge(edge);
-                if (!oneWay) { // Create the road in the opposite direction if it's not one way
-                    Edge oppositeEdge = new Edge(startingNode, name, roadType, speedLimit, distanceMeters, travelTimeSeconds);
-                    destinationNode.addEdge(oppositeEdge);
-                }
-                //edge.printInfo();
-            }
-
-        }
-
+        reader.close();
         return graph;
     }
+
+    // Parses one "way"
+    private static void parseWay(XMLStreamReader reader, Graph graph) throws XMLStreamException {
+        // Set the fallback for the attributes of the edge
+        List<Long> nodesRefs = new ArrayList<>();
+        double distanceMeters = -1;
+        int speedLimit = -1;
+        RoadType roadType = RoadType.MISSING;
+        String name = "Unnamed road";
+        boolean oneWay = false;
+
+        // Cycle every edge
+        while (reader.hasNext()) {
+            int event = reader.next();
+
+            if (event == XMLStreamConstants.START_ELEMENT) {
+                String tagName = reader.getLocalName();
+
+                if ("nd".equals(tagName)) {
+                    nodesRefs.add(Long.parseLong(reader.getAttributeValue(null, "ref")));
+                } else if ("tag".equals(tagName)) {
+                    String key = reader.getAttributeValue(null, "k");
+                    String value = reader.getAttributeValue(null, "v");
+
+                    switch (key) {
+                        case "name" -> name = value;
+                        case "highway" -> roadType = RoadType.parseRoadType(value);
+                        case "maxspeed" -> speedLimit = parseSpeedLimit(value);
+                        case "oneway" -> oneWay = "yes".equalsIgnoreCase(value); // oneway="yes", not oneway="true"
+                    }
+                } // else if tag closure
+
+            } else if (event == XMLStreamConstants.END_ELEMENT && "way".equals(reader.getLocalName())) {
+                break; // Stop reading this way element
+            }
+        }
+
+        if (roadType == RoadType.MISSING || roadType == RoadType.OTHER) return;
+
+        if (speedLimit == -1) {
+            speedLimit = roadType.getDefaultMaxSpeed();
+        }
+
+        // Apply the edge at each intersection with other nodes
+        for (int i = 1; i < nodesRefs.size(); i++) {
+
+            // Get the starting node
+            Node startingNode = graph.getNode(nodesRefs.get(i-1));
+            if (startingNode == null) continue; // If the start is out of scope, skip this edge
+
+            // Get the destination node
+            Node destinationNode = graph.getNode(nodesRefs.get(i));
+            if (destinationNode == null) continue; // If the destination is out of scope, skip this edge
+
+            // Calculate the distance
+            distanceMeters = RoadUtil.calculateDistance(startingNode.getLat(), startingNode.getLon(), destinationNode.getLat(), destinationNode.getLon());
+
+            // Get the estimated travel time (s = m/kmh)
+            double travelTimeSeconds = distanceMeters * 3.6 / speedLimit; // Travel time seconds
+
+            // Create the edge and add it to the starting node
+            Edge edge = new Edge(destinationNode, name, roadType, speedLimit, distanceMeters, travelTimeSeconds);
+            startingNode.addEdge(edge);
+            if (!oneWay) { // Create the road in the opposite direction if it's not one way
+                Edge oppositeEdge = new Edge(startingNode, name, roadType, speedLimit, distanceMeters, travelTimeSeconds);
+                destinationNode.addEdge(oppositeEdge);
+            }
+            //edge.printInfo();
+        } // for nodesRefs closure
+
+    } // parseWay closure
 
 
     // Precompiler regex to parse the speed limit
