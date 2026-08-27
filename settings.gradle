@@ -1,0 +1,6 @@
+rootProject.name = 'least-resistance-gps'
+
+// Include modules
+include 'core'
+include 'geocoding'
+include 'ui-desktop'

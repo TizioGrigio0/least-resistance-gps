@@ -1,0 +1,4 @@
+dependencies {
+    // Geocoding depends on core data models (e.g., GeoPoint record)
+    implementation project(':core')
+}

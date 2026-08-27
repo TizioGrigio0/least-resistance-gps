@@ -1,0 +1,7 @@
+dependencies {
+    // OpenStreetMap PBF Parser
+    implementation 'de.topobyte:osm4j-pbf:0.1.0'
+
+    // Spatial Math & Indexing (R-Tree / Geometry)
+    implementation 'org.locationtech.jts:jts-core:1.19.0'
+}
