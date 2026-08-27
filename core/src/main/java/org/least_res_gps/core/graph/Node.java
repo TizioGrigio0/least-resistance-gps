@@ -11,6 +11,8 @@ public class Node {
 
     private List<Edge> edgeList = new ArrayList<>();
 
+    private List<TrafficObstacle> obstacles = new ArrayList<>();
+
     public long getId() { return id; }
     public double getLat() { return lat; }
     public double getLon() { return lon; }
@@ -25,6 +27,9 @@ public class Node {
     public void addEdge(Edge edge) {
         edgeList.add(edge);
     }
+
+    public void addObstacle(TrafficObstacle obstacle) { obstacles.add(obstacle); }
+    public List<TrafficObstacle> getObstacles() { return obstacles; }
 
     @Override public String toString() {
         return "Node{"+id+"}";

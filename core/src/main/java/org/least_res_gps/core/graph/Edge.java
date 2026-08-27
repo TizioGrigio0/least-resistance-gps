@@ -6,9 +6,10 @@ public record Edge(
         RoadType roadType,
         int speedLimit,
         double distanceMeters,
-        double weight
+        double weight,
+        RoadMaterial roadMaterial
 ) {
     public void printInfo() {
-        System.out.println("EDGE - name:"+name+" - destination:"+destination+" - length:"+distanceMeters+" - limit:"+speedLimit+" - weight:"+weight+" - roadType:"+roadType);
+        System.out.println("EDGE - name:"+name+" - destination:"+destination+" - length:"+distanceMeters+" - limit:"+speedLimit+" - weight:"+weight+" - roadType:"+roadType+" - roadMaterial:"+roadMaterial);
     }
 }

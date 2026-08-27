@@ -1,9 +1,6 @@
 package org.least_res_gps.core.parser;
 
-import org.least_res_gps.core.graph.Edge;
-import org.least_res_gps.core.graph.Graph;
-import org.least_res_gps.core.graph.Node;
-import org.least_res_gps.core.graph.RoadType;
+import org.least_res_gps.core.graph.*;
 import org.least_res_gps.core.util.RoadUtil;
 
 import javax.xml.stream.XMLInputFactory;
@@ -13,49 +10,80 @@ import javax.xml.stream.XMLStreamReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
 public class OsmParser {
 
 
-    public static Graph parse(File osmFile) throws FileNotFoundException, XMLStreamException {
+    public static Graph parse(File osmFile) throws IOException, XMLStreamException {
 
         // Create factory and reader
         XMLInputFactory factory = XMLInputFactory.newInstance();
-        XMLStreamReader reader = factory.createXMLStreamReader(new FileInputStream(osmFile));
-
         Graph graph = new Graph();
 
-        while (reader.hasNext()) {
+        try (FileInputStream fis = new FileInputStream(osmFile)) {
+            XMLStreamReader reader = factory.createXMLStreamReader(fis);
 
-            int event = reader.next();
+            while (reader.hasNext()) {
 
-            if (event == XMLStreamConstants.START_ELEMENT && "node".equals(reader.getLocalName())) {
-                // Extract attributes
-                long id = Long.parseLong(reader.getAttributeValue(null, "id"));
-                double lat = Double.parseDouble(reader.getAttributeValue(null, "lat"));
-                double lon = Double.parseDouble(reader.getAttributeValue(null, "lon"));
+                int event = reader.next();
 
-                // Create a node with those attributes and add it to the graph
-                graph.addNode(new Node(id, lat, lon));
-            } else if (event == XMLStreamConstants.START_ELEMENT && "way".equals(reader.getLocalName())) { // We reach the tag "way", we finished with the nodes
-                // Parse the "ways" after finishing with the nodes
-                parseWay(reader, graph);
+                if (event == XMLStreamConstants.START_ELEMENT && "node".equals(reader.getLocalName())) {
+                    parseNode(reader, graph);
+                } else if (event == XMLStreamConstants.START_ELEMENT && "way".equals(reader.getLocalName())) { // We reach the tag "way" after we finished with the nodes
+                    parseWay(reader, graph);
+                }
             }
-        }
 
-        reader.close();
+            reader.close();
+        }
         return graph;
     }
 
-    // Parses one "way"
+    // Parses the next event in the reader like a "node"
+    // Doesn't check if we actually hit a "node"
+    private static void parseNode(XMLStreamReader reader, Graph graph) throws XMLStreamException {
+        // Extract attributes
+        long id = Long.parseLong(reader.getAttributeValue(null, "id"));
+        double lat = Double.parseDouble(reader.getAttributeValue(null, "lat"));
+        double lon = Double.parseDouble(reader.getAttributeValue(null, "lon"));
+
+        // Create a node with those attributes
+        Node node = new Node(id, lat, lon);
+
+        // Look for obstacles and add them to the list
+        while(reader.hasNext()) {
+            int event = reader.next();
+
+            if (event == XMLStreamConstants.START_ELEMENT) {
+                String tagName = reader.getLocalName();
+
+                if ("tag".equals(tagName)) {
+                    String key = reader.getAttributeValue(null, "k");
+                    String value = reader.getAttributeValue(null, "v");
+                    TrafficObstacle obstacle = TrafficObstacle.parseObstacle(key, value);
+                    if (obstacle != TrafficObstacle.NONE) node.addObstacle(obstacle);
+                }
+            } else if (event == XMLStreamConstants.END_ELEMENT && "node".equals(reader.getLocalName())) {
+                break; // Stop reading this way element
+            }
+        } // while closure
+
+        // Add the node to the graph
+        graph.addNode(node);
+    }
+
+    // Parses the next event in the reader like a "way"
+    // Doesn't check if we actually hit a "way"
     private static void parseWay(XMLStreamReader reader, Graph graph) throws XMLStreamException {
         // Set the fallback for the attributes of the edge
         List<Long> nodesRefs = new ArrayList<>();
         double distanceMeters = -1;
         int speedLimit = -1;
         RoadType roadType = RoadType.MISSING;
+        RoadMaterial roadMaterial = RoadMaterial.FLAT;
         String name = "Unnamed road";
         boolean oneWay = false;
 
@@ -76,6 +104,7 @@ public class OsmParser {
                         case "name" -> name = value;
                         case "highway" -> roadType = RoadType.parseRoadType(value);
                         case "maxspeed" -> speedLimit = parseSpeedLimit(value);
+                        case "surface" -> roadMaterial = RoadMaterial.parseMaterial(value);
                         case "oneway" -> oneWay = "yes".equalsIgnoreCase(value); // oneway="yes", not oneway="true"
                     }
                 } // else if tag closure
@@ -109,10 +138,10 @@ public class OsmParser {
             double travelTimeSeconds = distanceMeters * 3.6 / speedLimit; // Travel time seconds
 
             // Create the edge and add it to the starting node
-            Edge edge = new Edge(destinationNode, name, roadType, speedLimit, distanceMeters, travelTimeSeconds);
+            Edge edge = new Edge(destinationNode, name, roadType, speedLimit, distanceMeters, travelTimeSeconds, roadMaterial);
             startingNode.addEdge(edge);
             if (!oneWay) { // Create the road in the opposite direction if it's not one way
-                Edge oppositeEdge = new Edge(startingNode, name, roadType, speedLimit, distanceMeters, travelTimeSeconds);
+                Edge oppositeEdge = new Edge(startingNode, name, roadType, speedLimit, distanceMeters, travelTimeSeconds, roadMaterial);
                 destinationNode.addEdge(oppositeEdge);
             }
             //edge.printInfo();
