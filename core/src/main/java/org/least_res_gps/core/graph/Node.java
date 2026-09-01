@@ -2,6 +2,7 @@ package org.least_res_gps.core.graph;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 public class Node {
 
@@ -34,4 +35,7 @@ public class Node {
     @Override public String toString() {
         return "Node{"+id+"}";
     }
+
+    public boolean equals(Node node) { return id == node.id; }
+    @Override public int hashCode() { return Objects.hash(id); }
 }

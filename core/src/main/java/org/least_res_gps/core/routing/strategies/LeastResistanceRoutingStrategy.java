@@ -13,7 +13,7 @@ public class LeastResistanceRoutingStrategy implements RoutingStrategy {
     public double getEdgeCost(Edge edge) {
 
         // Get the base time to pass the way (at max speed)
-        double baseTime = edge.weight();
+        double baseTime = edge.travelTimeSeconds();
 
         // Calculate the obstacle penalty
         List<TrafficObstacle> obstacleList = edge.destination().getObstacles();

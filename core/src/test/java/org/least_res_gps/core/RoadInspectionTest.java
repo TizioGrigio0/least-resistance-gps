@@ -38,7 +38,7 @@ class RoadInspectionTest {
         System.out.println("Road Type: " + road.roadType());
         System.out.println("Speed Limit: " + road.speedLimit() + " km/h");
         System.out.println("Length: " + String.format("%.2f", road.distanceMeters()) + " meters");
-        System.out.println("Weight (Travel Time): " + String.format("%.2f", road.weight()) + " seconds");
+        System.out.println("Weight (Travel Time): " + String.format("%.2f", road.travelTimeSeconds()) + " seconds");
         System.out.println("Road Material: " + road.roadMaterial());
         
         // Verify all properties are accessible
@@ -46,7 +46,7 @@ class RoadInspectionTest {
         assertNotNull(road.roadType());
         assertTrue(road.speedLimit() > 0);
         assertTrue(road.distanceMeters() > 0);
-        assertTrue(road.weight() > 0);
+        assertTrue(road.travelTimeSeconds() > 0);
         assertNotNull(road.roadMaterial());
     }
 
@@ -113,7 +113,7 @@ class RoadInspectionTest {
         System.out.println("Road: " + road.name() + " (" + road.roadType() + ")");
         System.out.println("Road Length: " + String.format("%.2f", road.distanceMeters()) + "m");
         System.out.println("Road Speed Limit: " + road.speedLimit() + " km/h");
-        System.out.println("Base Travel Time: " + String.format("%.2f", road.weight()) + "s\n");
+        System.out.println("Base Travel Time: " + String.format("%.2f", road.travelTimeSeconds()) + "s\n");
         
         List<TrafficObstacle> allObstacles = testNode.getObstacles();
         allObstacles.addAll(endNode.getObstacles());
@@ -152,7 +152,7 @@ class RoadInspectionTest {
             System.out.println("Type: " + road.roadType());
             System.out.println("Length: " + String.format("%.2f", road.distanceMeters()) + "m");
             System.out.println("Speed Limit: " + road.speedLimit() + " km/h");
-            System.out.println("Travel Time: " + String.format("%.2f", road.weight()) + "s");
+            System.out.println("Travel Time: " + String.format("%.2f", road.travelTimeSeconds()) + "s");
             System.out.println("Material: " + road.roadMaterial());
             
             int obstacleCount = testNode.getObstacles().size() + destNode.getObstacles().size();
@@ -174,8 +174,8 @@ class RoadInspectionTest {
         assertTrue(road.speedLimit() > 0 && road.speedLimit() <= 200, 
                   "Speed limit should be between 1 and 200 km/h");
         
-        // Verify weight (travel time) is positive and calculated correctly
-        assertTrue(road.weight() > 0, "Weight (travel time) should be positive");
+        // Verify travelTimeSeconds (travel time) is positive and calculated correctly
+        assertTrue(road.travelTimeSeconds() > 0, "Weight (travel time) should be positive");
         
         // Verify road name is not null
         assertNotNull(road.name(), "Road name should not be null");
