@@ -7,9 +7,10 @@ Instead of looking strictly at travel time, LRGPS checks road friction, accounti
 Classic "fastest path" and "shortest path" routing strategies are also available, just in case.
 
 ## Modules
-### core (complete)
+### core (75%)
 This module manages the actual routing for the path we want.
 Features an OpenStreetMap .osm parser
+It's currently missing optimizations and the ability to recognise left from right (and that should matter, since having precedence is better)
 
 ### geocoding (0%)
 Will handle offline/online map downloads and address lookup, passing coordinate bounds directly to <b>core</b>.
